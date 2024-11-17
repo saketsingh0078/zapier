@@ -24,6 +24,7 @@ async function main() {
           value: message.value.toString(),
         });
         await new Promise((r) => setTimeout(r, 5000));
+
         await consumer.commitOffsets([
           {
             topic: TOPIC_NAME,
