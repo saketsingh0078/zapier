@@ -65,7 +65,7 @@ model AvailableAction {
 model ZapRun {
   id        String         @id  @default(uuid())
   zapId     String
-  metaData    Json        @default("{}")       
+  metaData  Json        @default("{}")       
   zap       Zap            @relation(fields: [zapId],references: [id])
   zapOutbox  ZapOutbox?
 }

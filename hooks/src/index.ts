@@ -1,12 +1,41 @@
 import express from "express";
+import { PrismaClient } from "@prisma/client";
 
 const app = express();
 
-app.post("/hooks/catch/:userId/:zapId", (req, res) => {
+app.use(express.json());
+
+const client = new PrismaClient();
+
+app.post("/hooks/catch/:userId/:zapId", async (req, res) => {
   const userId = req.params.userId;
   const zapId = req.params.zapId;
+  const body = req.body;
+  console.log(req.body);
 
   //store in the db a new trigger
+  await client.$transaction(async (tx) => {
+    const run = await client.zapRun.create({
+      data: {
+        zapId,
+        metaData: body,
+      },
+    });
+
+    await client.zapOutbox.create({
+      data: {
+        zapRunId: run.id,
+      },
+    });
+  });
 
   //push it on to a queue (kafka/redis)
+
+  res.json({
+    msg: "webhook recieved",
+  });
+});
+
+app.listen(3000, () => {
+  console.log("connected to hook server at 3000");
 });
