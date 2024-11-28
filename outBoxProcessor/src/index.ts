@@ -1,37 +1,39 @@
-import { Kafka } from "kafkajs";
 import { PrismaClient } from "@prisma/client";
+import { Kafka } from "kafkajs";
 
 const client = new PrismaClient();
 const TOPIC_NAME = "zap-events";
 
 const kafka = new Kafka({
-  clientId: "outBoxProcessor",
+  clientId: "outbox-processor",
   brokers: ["localhost:9092"],
 });
 
 async function main() {
-  const consumer = kafka.consumer({ groupId: "test-group" });
-  await consumer.connect();
-  await consumer.subscribe({ topic: TOPIC_NAME, fromBeginning: true });
+  const producer = kafka.producer();
+
+  await producer.connect();
 
   while (1) {
-    await consumer.run({
-      autoCommit: false,
-      eachMessage: async ({ topic, partition, message }) => {
-        console.log({
-          partition,
-          offset: message.offset,
-          value: message.value.toString(),
-        });
-        await new Promise((r) => setTimeout(r, 5000));
+    const pendingRows = await client.zapOutbox.findMany({
+      where: {},
+      take: 10,
+    });
 
-        await consumer.commitOffsets([
-          {
-            topic: TOPIC_NAME,
-            partition: partition,
-            offset: (parseInt(message.offset) + 1).toString(),
-          },
-        ]);
+    await producer.send({
+      topic: TOPIC_NAME,
+      messages: pendingRows.map((r) => {
+        return {
+          value: r.zapRunId,
+        };
+      }),
+    });
+
+    await client.zapOutbox.deleteMany({
+      where: {
+        id: {
+          in: pendingRows.map((r) => r.id),
+        },
       },
     });
   }
